@@ -44,7 +44,16 @@ export default function DateSelector() {
             </button>
 
             {isOpen && (
-                <div className="absolute z-50 mt-2 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+                <div
+                    className="
+            absolute z-50 mt-2
+            right-0 left-auto
+            w-max max-w-[calc(100vw-2rem)]
+            origin-top-right
+            rounded-lg border border-gray-200 bg-white p-3 shadow-lg
+            overflow-auto
+          "
+                >
                     <DayPicker
                         mode="single"
                         selected={selectedDateObj}
