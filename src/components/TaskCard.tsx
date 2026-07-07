@@ -1,7 +1,9 @@
 "use client";
 
 import { Task } from "@/types/task";
-import { Pencil, Trash2, Tag } from "lucide-react";
+import { Pencil, Trash2, Tag, GripVertical } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 const priorityStyles: Record<Task["priority"], string> = {
     low: "bg-green-50 text-green-700 border-green-200",
@@ -16,10 +18,35 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: task.id,
+        data: { task },
+    });
+
+    const style = {
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.4 : 1,
+        boxShadow: isDragging ? "0 8px 16px rgba(0,0,0,0.15)" : undefined,
+    };
+
     return (
-        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
+        >
             <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-semibold text-gray-800">{task.title}</h3>
+                <div className="flex items-start gap-1">
+                    <button
+                        {...attributes}
+                        {...listeners}
+                        className="mt-0.5 cursor-grab touch-none text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+                        aria-label="Drag task"
+                    >
+                        <GripVertical size={14} />
+                    </button>
+                    <h3 className="text-sm font-semibold text-gray-800">{task.title}</h3>
+                </div>
                 <span
                     className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${priorityStyles[task.priority]}`}
                 >
