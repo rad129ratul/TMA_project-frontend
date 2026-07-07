@@ -2,11 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Plus } from "lucide-react";
+import {
+    DndContext,
+    DragEndEvent,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core";
 import { useDateStore } from "@/store/useDateStore";
 import { apiFetch } from "@/lib/api";
-import { Task } from "@/types/task";
+import { Task, TaskStatus } from "@/types/task";
 import Column from "./Column";
-import TaskModal from "./TaskModal"
+import TaskModal from "./TaskModal";
 
 export default function Board() {
     const selectedDate = useDateStore((state) => state.selectedDate);
@@ -18,6 +25,12 @@ export default function Board() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 8 },
+        })
+    );
 
     const fetchTasks = useCallback(async () => {
         setLoading(true);
@@ -66,6 +79,41 @@ export default function Board() {
         }
     }
 
+    // Drag & Drop core logic ──────────────────────────────
+    async function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+
+        if (!over) return;
+
+        const taskId = active.id as number;
+        const newStatus = over.id as TaskStatus;
+
+        const draggedTask = tasks.find((t) => t.id === taskId);
+        if (!draggedTask) return;
+
+        if (draggedTask.status === newStatus) return;
+
+        const previousTasks = tasks;
+
+        setTasks((prev) =>
+            prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+        );
+
+        try {
+            const res = await apiFetch(`/api/tasks/${taskId}/`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: newStatus }),
+            });
+
+            if (!res.ok) {
+                throw new Error("Status update failed on server");
+            }
+        } catch {
+            setTasks(previousTasks);
+            setError("Task could not be moved — Connection to server failed. Please try again.");
+        }
+    }
+
     const todoTasks = tasks.filter((t) => t.status === "todo");
     const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
     const doneTasks = tasks.filter((t) => t.status === "done");
@@ -96,29 +144,31 @@ export default function Board() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Column
-                        title="To Do"
-                        status="todo"
-                        tasks={todoTasks}
-                        onEdit={openEditModal}
-                        onDelete={requestDelete}
-                    />
-                    <Column
-                        title="In Progress"
-                        status="in_progress"
-                        tasks={inProgressTasks}
-                        onEdit={openEditModal}
-                        onDelete={requestDelete}
-                    />
-                    <Column
-                        title="Done"
-                        status="done"
-                        tasks={doneTasks}
-                        onEdit={openEditModal}
-                        onDelete={requestDelete}
-                    />
-                </div>
+                <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <Column
+                            title="To Do"
+                            status="todo"
+                            tasks={todoTasks}
+                            onEdit={openEditModal}
+                            onDelete={requestDelete}
+                        />
+                        <Column
+                            title="In Progress"
+                            status="in_progress"
+                            tasks={inProgressTasks}
+                            onEdit={openEditModal}
+                            onDelete={requestDelete}
+                        />
+                        <Column
+                            title="Done"
+                            status="done"
+                            tasks={doneTasks}
+                            onEdit={openEditModal}
+                            onDelete={requestDelete}
+                        />
+                    </div>
+                </DndContext>
             )}
 
             {isModalOpen && (
