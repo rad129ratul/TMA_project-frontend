@@ -2,6 +2,7 @@
 
 import { Task, TaskStatus } from "@/types/task";
 import TaskCard from "./TaskCard";
+import { useDroppable } from "@dnd-kit/core";
 
 interface ColumnProps {
     title: string;
@@ -18,9 +19,15 @@ const columnAccent: Record<TaskStatus, string> = {
 };
 
 export default function Column({ title, status, tasks, onEdit, onDelete }: ColumnProps) {
+    const { setNodeRef, isOver } = useDroppable({
+        id: status,
+    });
+
     return (
         <div
-            className={`flex w-full min-h-[200px] flex-col rounded-lg border-t-4 bg-gray-50 p-3 ${columnAccent[status]}`}
+            ref={setNodeRef}
+            className={`flex w-full min-h-[200px] flex-col rounded-lg border-t-4 bg-gray-50 p-3 transition-colors ${columnAccent[status]} ${isOver ? "bg-blue-50 ring-2 ring-blue-300" : ""
+                }`}
         >
             <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-gray-600">{title}</h2>
