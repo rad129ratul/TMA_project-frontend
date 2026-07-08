@@ -10,6 +10,14 @@ interface AnnotationCanvasProps {
     image: UploadedImage;
 }
 
+function toNormalized(point: Point, width: number, height: number): Point {
+    return { x: point.x / width, y: point.y / height };
+}
+
+function toPixels(point: Point, width: number, height: number): Point {
+    return { x: point.x * width, y: point.y * height };
+}
+
 const CLOSE_THRESHOLD_PX = 10; // Clicking within this distance of the first point will close the polygon.
 
 export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
@@ -66,7 +74,13 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
     function closePolygon() {
         if (activePoints.length < 3) return;
+
+        const normalizedPoints = activePoints.map((p) =>
+            toNormalized(p, displayWidth, displayHeight)
+        );
+
         setCompletedPolygons((prev) => [...prev, activePoints]);
+        console.log("normalized points ready to save:", normalizedPoints);
         setActivePoints([]);
     }
 
