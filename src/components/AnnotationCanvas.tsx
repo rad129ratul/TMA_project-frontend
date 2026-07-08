@@ -31,6 +31,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     const [htmlImage] = useImage(image.file, "anonymous");
 
     const [activePoints, setActivePoints] = useState<Point[]>([]);
+    const [mousePos, setMousePos] = useState<Point | null>(null);
     const [savedAnnotations, setSavedAnnotations] = useState<Annotation[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
     useEffect(() => {
         setActivePoints([]);
+        setMousePos(null);
         setError(null);
         fetchAnnotations();
     }, [fetchAnnotations]);
@@ -107,12 +109,24 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         setActivePoints((prev) => [...prev, newPoint]);
     }
 
+    function handleMouseMove(e: KonvaEventObject<MouseEvent>) {
+        // Only needs to be tracked when a polygon is being drawn (at least 1 point has been placed)
+        if (activePoints.length === 0) return;
+
+        const stage = e.target.getStage();
+        const pointerPos = stage?.getPointerPosition();
+        if (!pointerPos) return;
+
+        setMousePos({ x: pointerPos.x, y: pointerPos.y });
+    }
+
     function closePolygon() {
         if (activePoints.length < 3) return;
         const normalizedPoints = activePoints.map((p) =>
             toNormalized(p, displayWidth, displayHeight)
         );
         setActivePoints([]);
+        setMousePos(null);
         saveAnnotation(normalizedPoints);
     }
 
@@ -140,7 +154,12 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
             <div ref={containerRef} className="w-full">
                 {htmlImage && displayWidth > 0 && (
-                    <Stage width={displayWidth} height={displayHeight} onClick={handleStageClick}>
+                    <Stage
+                        width={displayWidth}
+                        height={displayHeight}
+                        onClick={handleStageClick}
+                        onMouseMove={handleMouseMove}
+                    >
                         <Layer>
                             <KonvaImage image={htmlImage} width={displayWidth} height={displayHeight} />
 
@@ -169,6 +188,21 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                                     stroke="#f97316"
                                     strokeWidth={2}
                                     dash={[6, 4]}
+                                />
+                            )}
+                            {/* Rubber band line — preview from the last placed point to the current cursor position */}
+                            {activePoints.length > 0 && mousePos && (
+                                <Line
+                                    points={[
+                                        activePoints[activePoints.length - 1].x,
+                                        activePoints[activePoints.length - 1].y,
+                                        mousePos.x,
+                                        mousePos.y,
+                                    ]}
+                                    stroke="#f97316"
+                                    strokeWidth={1.5}
+                                    dash={[3, 3]}
+                                    opacity={0.5}
                                 />
                             )}
                             {activePoints.map((p, idx) => (
