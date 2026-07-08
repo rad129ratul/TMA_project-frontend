@@ -47,8 +47,12 @@ interface ApiOptions extends RequestInit {
 export async function apiFetch(path: string, options: ApiOptions = {}) {
     const { skipAuth, headers, ...rest } = options;
 
+    // If it is FormData, you have to let the browser set the Content-Type automatically (including boundary),
+    // If we manually set "application/json" multipart parsing will break.
+    const isFormData = typeof FormData !== "undefined" && rest.body instanceof FormData;
+
     const buildHeaders = (token: string | null) => ({
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token && !skipAuth ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
     });
@@ -60,7 +64,6 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
         headers: buildHeaders(token),
     });
 
-    // Access token expired → try refresh once
     if (res.status === 401 && !skipAuth) {
         const newToken = await refreshAccessToken();
         if (newToken) {

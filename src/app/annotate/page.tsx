@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { UploadedImage } from "@/types/annotation";
 import ImageSlider from "@/components/ImageSlider";
+import ImageUploadZone from "@/components/ImageUploadZone";
 
 export default function AnnotatePage() {
     const [images, setImages] = useState<UploadedImage[]>([]);
@@ -17,10 +18,9 @@ export default function AnnotatePage() {
             if (!res.ok) throw new Error("Failed to fetch images");
             const data: UploadedImage[] = await res.json();
             setImages(data);
-            // When loading for the first time or after uploading, if no image is selected, the first one is auto-selected.
             setSelectedImage((prev) => prev ?? (data.length > 0 ? data[0] : null));
         } catch {
-            // Centralized error UI will be added in Step 2.
+            // no-op — the slider will automatically show an empty state
         } finally {
             setLoadingImages(false);
         }
@@ -33,6 +33,10 @@ export default function AnnotatePage() {
     return (
         <div className="p-8">
             <h1 className="mb-6 text-2xl font-bold">Annotate</h1>
+
+            <div className="mb-4">
+                <ImageUploadZone onUploaded={fetchImages} />
+            </div>
 
             <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 <ImageSlider
