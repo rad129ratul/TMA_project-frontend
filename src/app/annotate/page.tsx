@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { UploadedImage } from "@/types/annotation";
 import ImageSlider from "@/components/ImageSlider";
 import ImageUploadZone from "@/components/ImageUploadZone";
+import AnnotationCanvas from "@/components/AnnotationCanvas";
 
 export default function AnnotatePage() {
     const [images, setImages] = useState<UploadedImage[]>([]);
@@ -46,6 +47,11 @@ export default function AnnotatePage() {
                     loading={loadingImages}
                 />
             </div>
+            {selectedImage && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                    <AnnotationCanvas image={selectedImage} />
+                </div>
+            )}
         </div>
     );
 }
