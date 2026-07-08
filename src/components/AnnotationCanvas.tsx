@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
 import useImage from "use-image";
 import type { KonvaEventObject } from "konva/lib/Node";
+import { Trash2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { UploadedImage, Annotation, Point } from "@/types/annotation";
 
@@ -33,6 +34,8 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     const [activePoints, setActivePoints] = useState<Point[]>([]);
     const [mousePos, setMousePos] = useState<Point | null>(null);
     const [savedAnnotations, setSavedAnnotations] = useState<Annotation[]>([]);
+    const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -45,7 +48,6 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         return () => observer.disconnect();
     }, []);
 
-    // If the image changes: reset draft polygon + re-fetch annotations for that image
     const fetchAnnotations = useCallback(async () => {
         try {
             const res = await apiFetch(`/api/annotations/annotations/?image=${image.id}`);
@@ -60,6 +62,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     useEffect(() => {
         setActivePoints([]);
         setMousePos(null);
+        setSelectedAnnotationId(null);
         setError(null);
         fetchAnnotations();
     }, [fetchAnnotations]);
@@ -72,19 +75,13 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
     }
 
-    // Auto-save: POST as soon as polygon is closed
     async function saveAnnotation(normalizedPoints: Point[]) {
         try {
             const res = await apiFetch("/api/annotations/annotations/", {
                 method: "POST",
-                body: JSON.stringify({
-                    image: image.id,
-                    points: normalizedPoints,
-                    label: "",
-                }),
+                body: JSON.stringify({ image: image.id, points: normalizedPoints, label: "" }),
             });
             if (!res.ok) throw new Error("Save failed");
-            // If successful, the fresh list is fetched again from the backend (to get an authoritative copy with id, created_at)
             fetchAnnotations();
         } catch {
             setError("Failed to save the polygon. Please try drawing it again.");
@@ -92,6 +89,9 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     }
 
     function handleStageClick(e: KonvaEventObject<MouseEvent>) {
+        // Clicking on an empty space on the Stage will cancel the previous selection.
+        setSelectedAnnotationId(null);
+
         const stage = e.target.getStage();
         const pointerPos = stage?.getPointerPosition();
         if (!pointerPos) return;
@@ -110,13 +110,10 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     }
 
     function handleMouseMove(e: KonvaEventObject<MouseEvent>) {
-        // Only needs to be tracked when a polygon is being drawn (at least 1 point has been placed)
         if (activePoints.length === 0) return;
-
         const stage = e.target.getStage();
         const pointerPos = stage?.getPointerPosition();
         if (!pointerPos) return;
-
         setMousePos({ x: pointerPos.x, y: pointerPos.y });
     }
 
@@ -130,16 +127,26 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         saveAnnotation(normalizedPoints);
     }
 
-    // Delete: Simple interaction to delete an annotation by clicking on it
-    async function handleDeleteAnnotation(annotationId: number) {
+    // Step 1 — Select (click) → Confirm delete (button)
+    function handleSelectAnnotation(e: KonvaEventObject<MouseEvent>, annotationId: number) {
+        e.cancelBubble = true; // Prevent Stage's onClick (new point/deselect) from being triggered
+        setSelectedAnnotationId((prev) => (prev === annotationId ? null : annotationId));
+    }
+
+    async function confirmDeleteSelected() {
+        if (selectedAnnotationId === null) return;
+        setDeleting(true);
         try {
-            const res = await apiFetch(`/api/annotations/annotations/${annotationId}/`, {
+            const res = await apiFetch(`/api/annotations/annotations/${selectedAnnotationId}/`, {
                 method: "DELETE",
             });
             if (!res.ok) throw new Error("Delete failed");
-            setSavedAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
+            setSavedAnnotations((prev) => prev.filter((a) => a.id !== selectedAnnotationId));
+            setSelectedAnnotationId(null);
         } catch {
-            setError("Failed to delete the polygon.");
+            setError("Failed to delete the polygon. Please try again.");
+        } finally {
+            setDeleting(false);
         }
     }
 
@@ -148,8 +155,31 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
             {error && (
                 <p className="mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
             )}
+
+            {/* Selection toolbar — only visible when a polygon is selected */}
+            {selectedAnnotationId !== null && (
+                <div className="mb-2 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                    <span className="text-sm font-medium text-blue-700">Polygon selected</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setSelectedAnnotationId(null)}
+                            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                        >
+                            <X size={14} /> Cancel
+                        </button>
+                        <button
+                            onClick={confirmDeleteSelected}
+                            disabled={deleting}
+                            className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                            <Trash2 size={14} /> {deleting ? "Deleting..." : "Delete Selected Polygon"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <p className="mb-2 text-xs text-gray-400">
-                Click to add polygon points, click near the first point to close and auto-save. Click a saved polygon to delete it.
+                Click to add polygon points, click near the first point to close and auto-save. Click a saved polygon to select it for deletion.
             </p>
 
             <div ref={containerRef} className="w-full">
@@ -163,25 +193,23 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                         <Layer>
                             <KonvaImage image={htmlImage} width={displayWidth} height={displayHeight} />
 
-                            {/* Annotation loaded from backend — normalized → converted to pixel and rendered */}
-                            {savedAnnotations.map((annotation) => (
-                                <Line
-                                    key={annotation.id}
-                                    points={toFlatPoints(
-                                        annotation.points.map((p) => toPixels(p, displayWidth, displayHeight))
-                                    )}
-                                    closed
-                                    stroke="#2563eb"
-                                    strokeWidth={2}
-                                    fill="rgba(37, 99, 235, 0.2)"
-                                    onClick={(e) => {
-                                        e.cancelBubble = true; // Prevent Stage's onClick (adding new points) from being triggered
-                                        handleDeleteAnnotation(annotation.id);
-                                    }}
-                                />
-                            ))}
+                            {savedAnnotations.map((annotation) => {
+                                const isSelected = annotation.id === selectedAnnotationId;
+                                return (
+                                    <Line
+                                        key={annotation.id}
+                                        points={toFlatPoints(
+                                            annotation.points.map((p) => toPixels(p, displayWidth, displayHeight))
+                                        )}
+                                        closed
+                                        stroke={isSelected ? "#dc2626" : "#2563eb"}
+                                        strokeWidth={isSelected ? 3 : 2}
+                                        fill={isSelected ? "rgba(220, 38, 38, 0.25)" : "rgba(37, 99, 235, 0.2)"}
+                                        onClick={(e) => handleSelectAnnotation(e, annotation.id)}
+                                    />
+                                );
+                            })}
 
-                            {/* Polygon still being drawn */}
                             {activePoints.length > 0 && (
                                 <Line
                                     points={toFlatPoints(activePoints)}
@@ -190,7 +218,6 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                                     dash={[6, 4]}
                                 />
                             )}
-                            {/* Rubber band line — preview from the last placed point to the current cursor position */}
                             {activePoints.length > 0 && mousePos && (
                                 <Line
                                     points={[
