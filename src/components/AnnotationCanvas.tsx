@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
 import useImage from "use-image";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { Trash2, X } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { UploadedImage, Annotation, Point } from "@/types/annotation";
 
@@ -38,6 +38,13 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // ── Label modal state ──
+    const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
+    const [pendingPolygonPoints, setPendingPolygonPoints] = useState<Point[] | null>(null);
+    const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
+    const [labelInput, setLabelInput] = useState("");
+    const [savingLabel, setSavingLabel] = useState(false);
+
     useEffect(() => {
         if (!containerRef.current) return;
         const observer = new ResizeObserver((entries) => {
@@ -67,6 +74,12 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         fetchAnnotations();
     }, [fetchAnnotations]);
 
+    useEffect(() => {
+        if (isLabelModalOpen) {
+            setLabelInput(editingAnnotation?.label ?? "");
+        }
+    }, [isLabelModalOpen, editingAnnotation]);
+
     const aspectRatio = htmlImage ? htmlImage.height / htmlImage.width : 0.6;
     const displayWidth = containerWidth;
     const displayHeight = containerWidth * aspectRatio;
@@ -75,21 +88,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
     }
 
-    async function saveAnnotation(normalizedPoints: Point[]) {
-        try {
-            const res = await apiFetch("/api/annotations/annotations/", {
-                method: "POST",
-                body: JSON.stringify({ image: image.id, points: normalizedPoints, label: "" }),
-            });
-            if (!res.ok) throw new Error("Save failed");
-            fetchAnnotations();
-        } catch {
-            setError("Failed to save the polygon. Please try drawing it again.");
-        }
-    }
-
     function handleStageClick(e: KonvaEventObject<MouseEvent>) {
-        // Clicking on an empty space on the Stage will cancel the previous selection.
         setSelectedAnnotationId(null);
 
         const stage = e.target.getStage();
@@ -117,6 +116,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         setMousePos({ x: pointerPos.x, y: pointerPos.y });
     }
 
+    // When polygon is closed, the modal is opened without saving directly — leaving it in a pending state.
     function closePolygon() {
         if (activePoints.length < 3) return;
         const normalizedPoints = activePoints.map((p) =>
@@ -124,13 +124,77 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         );
         setActivePoints([]);
         setMousePos(null);
-        saveAnnotation(normalizedPoints);
+        setPendingPolygonPoints(normalizedPoints);
+        setEditingAnnotation(null);
+        setIsLabelModalOpen(true);
     }
 
-    // Step 1 — Select (click) → Confirm delete (button)
+    async function saveAnnotationWithLabel() {
+        if (!pendingPolygonPoints) return;
+        setSavingLabel(true);
+        try {
+            const res = await apiFetch("/api/annotations/annotations/", {
+                method: "POST",
+                body: JSON.stringify({
+                    image: image.id,
+                    points: pendingPolygonPoints,
+                    label: labelInput.trim(),
+                }),
+            });
+            if (!res.ok) throw new Error("Save failed");
+            await fetchAnnotations();
+            closeLabelModal();
+        } catch {
+            setError("Failed to save the polygon. Please try again.");
+        } finally {
+            setSavingLabel(false);
+        }
+    }
+
+    async function updateAnnotationLabel() {
+        if (!editingAnnotation) return;
+        setSavingLabel(true);
+        try {
+            const res = await apiFetch(`/api/annotations/annotations/${editingAnnotation.id}/`, {
+                method: "PATCH",
+                body: JSON.stringify({ label: labelInput.trim() }),
+            });
+            if (!res.ok) throw new Error("Update failed");
+            await fetchAnnotations();
+            closeLabelModal();
+        } catch {
+            setError("Failed to update the label. Please try again.");
+        } finally {
+            setSavingLabel(false);
+        }
+    }
+
+    function closeLabelModal() {
+        setIsLabelModalOpen(false);
+        setPendingPolygonPoints(null);
+        setEditingAnnotation(null);
+        setLabelInput("");
+    }
+
+    function handleLabelSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        if (editingAnnotation) {
+            updateAnnotationLabel();
+        } else {
+            saveAnnotationWithLabel();
+        }
+    }
+
     function handleSelectAnnotation(e: KonvaEventObject<MouseEvent>, annotationId: number) {
-        e.cancelBubble = true; // Prevent Stage's onClick (new point/deselect) from being triggered
+        e.cancelBubble = true;
         setSelectedAnnotationId((prev) => (prev === annotationId ? null : annotationId));
+    }
+
+    function openEditLabelModal() {
+        if (!selectedAnnotation) return;
+        setEditingAnnotation(selectedAnnotation);
+        setPendingPolygonPoints(null);
+        setIsLabelModalOpen(true);
     }
 
     async function confirmDeleteSelected() {
@@ -150,39 +214,26 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         }
     }
 
+    const selectedAnnotation = savedAnnotations.find((a) => a.id === selectedAnnotationId) ?? null;
+
+    function getFloatingMenuPosition(annotation: Annotation): { top: number; left: number } {
+        const firstPoint = annotation.points[0];
+        const pixelPoint = toPixels(firstPoint, displayWidth, displayHeight);
+        return { left: pixelPoint.x, top: pixelPoint.y - 12 };
+    }
+
     return (
         <div>
             {error && (
                 <p className="mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
             )}
 
-            {/* Selection toolbar — only visible when a polygon is selected */}
-            {selectedAnnotationId !== null && (
-                <div className="mb-2 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                    <span className="text-sm font-medium text-blue-700">Polygon selected</span>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setSelectedAnnotationId(null)}
-                            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
-                        >
-                            <X size={14} /> Cancel
-                        </button>
-                        <button
-                            onClick={confirmDeleteSelected}
-                            disabled={deleting}
-                            className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                        >
-                            <Trash2 size={14} /> {deleting ? "Deleting..." : "Delete Selected Polygon"}
-                        </button>
-                    </div>
-                </div>
-            )}
-
             <p className="mb-2 text-xs text-gray-400">
-                Click to add polygon points, click near the first point to close and auto-save. Click a saved polygon to select it for deletion.
+                Click to add polygon points, click near the first point to close and label it. Click a saved polygon to select it.
             </p>
 
-            <div ref={containerRef} className="w-full">
+            {/* relative — anchor for absolute positioning of floating menu */}
+            <div ref={containerRef} className="relative w-full">
                 {htmlImage && displayWidth > 0 && (
                     <Stage
                         width={displayWidth}
@@ -211,12 +262,7 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                             })}
 
                             {activePoints.length > 0 && (
-                                <Line
-                                    points={toFlatPoints(activePoints)}
-                                    stroke="#f97316"
-                                    strokeWidth={2}
-                                    dash={[6, 4]}
-                                />
+                                <Line points={toFlatPoints(activePoints)} stroke="#f97316" strokeWidth={2} dash={[6, 4]} />
                             )}
                             {activePoints.length > 0 && mousePos && (
                                 <Line
@@ -246,7 +292,84 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                         </Layer>
                     </Stage>
                 )}
+
+                {selectedAnnotation && (
+                    <div
+                        className="absolute z-40 -translate-x-1/2 -translate-y-full"
+                        style={{
+                            left: getFloatingMenuPosition(selectedAnnotation).left,
+                            top: getFloatingMenuPosition(selectedAnnotation).top,
+                        }}
+                    >
+                        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
+                            <span className="max-w-[120px] truncate text-xs font-medium text-gray-700">
+                                {selectedAnnotation.label || "(no label)"}
+                            </span>
+                            <div className="h-4 w-px bg-gray-200" />
+                            <button
+                                onClick={openEditLabelModal}
+                                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
+                                aria-label="Edit label"
+                            >
+                                <Pencil size={14} />
+                            </button>
+                            <button
+                                onClick={confirmDeleteSelected}
+                                disabled={deleting}
+                                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 disabled:opacity-50"
+                                aria-label="Delete polygon"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                        <div className="mx-auto h-2 w-2 rotate-45 bg-white border-b border-r border-gray-200 -mt-1" />
+                    </div>
+                )}
             </div>
+
+            {/* ── Label Input Modal ── */}
+            {isLabelModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+                        <h3 className="mb-1 text-lg font-semibold text-gray-800">
+                            {editingAnnotation ? "Edit Label" : "Label this Polygon"}
+                        </h3>
+                        <p className="mb-4 text-xs text-gray-500">
+                            {editingAnnotation
+                                ? "Update the label for this saved polygon."
+                                : "Give this shape a name before saving (e.g. tumor, lesion, region-A)."}
+                        </p>
+
+                        <form onSubmit={handleLabelSubmit}>
+                            <input
+                                type="text"
+                                autoFocus
+                                value={labelInput}
+                                onChange={(e) => setLabelInput(e.target.value)}
+                                placeholder="e.g. tumor-region-A"
+                                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+
+                            <div className="mt-5 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={closeLabelModal}
+                                    className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingLabel}
+                                    className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {savingLabel ? "Saving..." : editingAnnotation ? "Update Label" : "Save Polygon"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
