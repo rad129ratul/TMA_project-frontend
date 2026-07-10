@@ -1,9 +1,15 @@
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Navbar from "@/components/Navbar";
 
-export default function TasksLayout({
+export default function AnnotateLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    return <ProtectedRoute>{children}</ProtectedRoute>;
+    return (
+        <ProtectedRoute>
+            <Navbar />
+            {children}
+        </ProtectedRoute>
+    );
 }
