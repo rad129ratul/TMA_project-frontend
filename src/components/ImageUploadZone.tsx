@@ -5,10 +5,11 @@ import { UploadCloud, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface ImageUploadZoneProps {
+    taskId: string;
     onUploaded: () => void;
 }
 
-export default function ImageUploadZone({ onUploaded }: ImageUploadZoneProps) {
+export default function ImageUploadZone({ taskId, onUploaded }: ImageUploadZoneProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export default function ImageUploadZone({ onUploaded }: ImageUploadZoneProps) {
         try {
             const formData = new FormData();
             formData.append("file", file);
+            formData.append("task", taskId); // Backend will now know which task this image is associated with
 
             const res = await apiFetch("/api/annotations/images/", {
                 method: "POST",
