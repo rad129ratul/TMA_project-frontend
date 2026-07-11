@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus } from "lucide-react";
+import { Plus, AlertCircle, Loader2 } from "lucide-react";
 import {
     DndContext,
     DragEndEvent,
@@ -79,7 +79,7 @@ export default function Board() {
         }
     }
 
-    // Drag & Drop core logic ──────────────────────────────
+    // Drag & Drop core logic
     async function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
 
@@ -120,26 +120,34 @@ export default function Board() {
 
     return (
         <div>
-            <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm text-gray-500">
-                    {tasks.length} tasks found for {selectedDate}
+            <div className="mb-5 flex items-center justify-between">
+                <p className="text-sm text-slate-500">
+                    <span className="font-semibold text-slate-700">{tasks.length}</span> tasks found for{" "}
+                    <span className="font-medium text-slate-600">{selectedDate}</span>
                 </p>
                 <button
                     onClick={openAddModal}
-                    className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-soft-sm transition-all hover:bg-primary-700 hover:shadow-soft-md active:scale-95"
                 >
                     <Plus size={16} /> Add Task
                 </button>
             </div>
 
-            {loading && <p className="text-sm text-gray-400">loading...</p>}
+            {loading && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
+                    <Loader2 size={14} className="animate-spin" /> loading...
+                </div>
+            )}
             {error && (
-                <p className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-danger-100 bg-danger-50 px-3.5 py-2.5 text-sm text-danger-700">
+                    <AlertCircle size={15} className="shrink-0" />
+                    {error}
+                </div>
             )}
 
             {!loading && tasks.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-300 p-10 text-center">
-                    <p className="text-sm text-gray-500">
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-12 text-center">
+                    <p className="text-sm text-slate-500">
                         There are no tasks for this date. Add a new task!
                     </p>
                 </div>
@@ -184,22 +192,22 @@ export default function Board() {
             )}
 
             {deletingTask && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-                        <h3 className="text-lg font-semibold text-gray-800">Delete the task?</h3>
-                        <p className="mt-2 text-sm text-gray-500">
-                            &quot;{deletingTask.title}&quot; This action will be permanently deleted. It cannot be undone.
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-soft-xl">
+                        <h3 className="text-base font-semibold text-slate-900">Delete the task?</h3>
+                        <p className="mt-2 text-sm text-slate-500">
+                            &quot;{deletingTask.title}&quot; will be permanently deleted. This action cannot be undone.
                         </p>
-                        <div className="mt-5 flex justify-end gap-3">
+                        <div className="mt-5 flex justify-end gap-2.5">
                             <button
                                 onClick={() => setDeletingTask(null)}
-                                className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={confirmDelete}
-                                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                className="rounded-lg bg-danger-600 px-4 py-2 text-sm font-medium text-white shadow-soft-sm transition-all hover:bg-danger-700 active:scale-95"
                             >
                                 Delete
                             </button>

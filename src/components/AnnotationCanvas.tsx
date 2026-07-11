@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
 import useImage from "use-image";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, MousePointerClick } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { UploadedImage, Annotation, Point } from "@/types/annotation";
 
@@ -38,7 +38,6 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // ── Label modal state ──
     const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
     const [pendingPolygonPoints, setPendingPolygonPoints] = useState<Point[] | null>(null);
     const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
@@ -116,7 +115,6 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         setMousePos({ x: pointerPos.x, y: pointerPos.y });
     }
 
-    // When polygon is closed, the modal is opened without saving directly — leaving it in a pending state.
     function closePolygon() {
         if (activePoints.length < 3) return;
         const normalizedPoints = activePoints.map((p) =>
@@ -219,122 +217,138 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     function getFloatingMenuPosition(annotation: Annotation): { top: number; left: number } {
         const firstPoint = annotation.points[0];
         const pixelPoint = toPixels(firstPoint, displayWidth, displayHeight);
-        return { left: pixelPoint.x, top: pixelPoint.y - 12 };
+        return { left: pixelPoint.x, top: pixelPoint.y - 14 };
     }
 
     return (
         <div>
             {error && (
-                <p className="mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+                <div className="mb-3 rounded-lg border border-danger-100 bg-danger-50 px-3.5 py-2.5 text-sm text-danger-700">
+                    {error}
+                </div>
             )}
 
-            <p className="mb-2 text-xs text-gray-400">
-                Click to add polygon points, click near the first point to close and label it. Click a saved polygon to select it.
-            </p>
-
-            {/* relative — anchor for absolute positioning of floating menu */}
-            <div ref={containerRef} className="relative w-full">
-                {htmlImage && displayWidth > 0 && (
-                    <Stage
-                        width={displayWidth}
-                        height={displayHeight}
-                        onClick={handleStageClick}
-                        onMouseMove={handleMouseMove}
-                    >
-                        <Layer>
-                            <KonvaImage image={htmlImage} width={displayWidth} height={displayHeight} />
-
-                            {savedAnnotations.map((annotation) => {
-                                const isSelected = annotation.id === selectedAnnotationId;
-                                return (
-                                    <Line
-                                        key={annotation.id}
-                                        points={toFlatPoints(
-                                            annotation.points.map((p) => toPixels(p, displayWidth, displayHeight))
-                                        )}
-                                        closed
-                                        stroke={isSelected ? "#dc2626" : "#2563eb"}
-                                        strokeWidth={isSelected ? 3 : 2}
-                                        fill={isSelected ? "rgba(220, 38, 38, 0.25)" : "rgba(37, 99, 235, 0.2)"}
-                                        onClick={(e) => handleSelectAnnotation(e, annotation.id)}
-                                    />
-                                );
-                            })}
-
-                            {activePoints.length > 0 && (
-                                <Line points={toFlatPoints(activePoints)} stroke="#f97316" strokeWidth={2} dash={[6, 4]} />
-                            )}
-                            {activePoints.length > 0 && mousePos && (
-                                <Line
-                                    points={[
-                                        activePoints[activePoints.length - 1].x,
-                                        activePoints[activePoints.length - 1].y,
-                                        mousePos.x,
-                                        mousePos.y,
-                                    ]}
-                                    stroke="#f97316"
-                                    strokeWidth={1.5}
-                                    dash={[3, 3]}
-                                    opacity={0.5}
-                                />
-                            )}
-                            {activePoints.map((p, idx) => (
-                                <Circle
-                                    key={idx}
-                                    x={p.x}
-                                    y={p.y}
-                                    radius={4}
-                                    fill={idx === 0 ? "#f97316" : "#ffffff"}
-                                    stroke="#f97316"
-                                    strokeWidth={1.5}
-                                />
-                            ))}
-                        </Layer>
-                    </Stage>
-                )}
-
-                {selectedAnnotation && (
-                    <div
-                        className="absolute z-40 -translate-x-1/2 -translate-y-full"
-                        style={{
-                            left: getFloatingMenuPosition(selectedAnnotation).left,
-                            top: getFloatingMenuPosition(selectedAnnotation).top,
-                        }}
-                    >
-                        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
-                            <span className="max-w-[120px] truncate text-xs font-medium text-gray-700">
-                                {selectedAnnotation.label || "(no label)"}
-                            </span>
-                            <div className="h-4 w-px bg-gray-200" />
-                            <button
-                                onClick={openEditLabelModal}
-                                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-                                aria-label="Edit label"
-                            >
-                                <Pencil size={14} />
-                            </button>
-                            <button
-                                onClick={confirmDeleteSelected}
-                                disabled={deleting}
-                                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 disabled:opacity-50"
-                                aria-label="Delete polygon"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                        <div className="mx-auto h-2 w-2 rotate-45 bg-white border-b border-r border-gray-200 -mt-1" />
-                    </div>
-                )}
+            <div className="mb-3 flex items-center gap-1.5 text-xs text-slate-400">
+                <MousePointerClick size={13} />
+                Click to add points, click near the first point to close &amp; label. Click a saved polygon to select it.
             </div>
 
-            {/* ── Label Input Modal ── */}
+            {/* ── Canvas frame — dark editor-style container so the image pops ── */}
+            <div className="rounded-xl bg-slate-900 p-3 shadow-soft-md">
+                <div
+                    ref={containerRef}
+                    className="relative w-full overflow-hidden rounded-lg"
+                    style={{
+                        backgroundImage:
+                            "linear-gradient(45deg, #1e293b 25%, transparent 25%), linear-gradient(-45deg, #1e293b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e293b 75%), linear-gradient(-45deg, transparent 75%, #1e293b 75%)",
+                        backgroundSize: "16px 16px",
+                        backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+                        backgroundColor: "#0f172a",
+                    }}
+                >
+                    {htmlImage && displayWidth > 0 && (
+                        <Stage
+                            width={displayWidth}
+                            height={displayHeight}
+                            onClick={handleStageClick}
+                            onMouseMove={handleMouseMove}
+                        >
+                            <Layer>
+                                <KonvaImage image={htmlImage} width={displayWidth} height={displayHeight} />
+
+                                {savedAnnotations.map((annotation) => {
+                                    const isSelected = annotation.id === selectedAnnotationId;
+                                    return (
+                                        <Line
+                                            key={annotation.id}
+                                            points={toFlatPoints(
+                                                annotation.points.map((p) => toPixels(p, displayWidth, displayHeight))
+                                            )}
+                                            closed
+                                            stroke={isSelected ? "#f43f5e" : "#6366f1"}
+                                            strokeWidth={isSelected ? 3 : 2}
+                                            fill={isSelected ? "rgba(244, 63, 94, 0.22)" : "rgba(99, 102, 241, 0.18)"}
+                                            onClick={(e) => handleSelectAnnotation(e, annotation.id)}
+                                        />
+                                    );
+                                })}
+
+                                {activePoints.length > 0 && (
+                                    <Line points={toFlatPoints(activePoints)} stroke="#f97316" strokeWidth={2} dash={[6, 4]} />
+                                )}
+                                {activePoints.length > 0 && mousePos && (
+                                    <Line
+                                        points={[
+                                            activePoints[activePoints.length - 1].x,
+                                            activePoints[activePoints.length - 1].y,
+                                            mousePos.x,
+                                            mousePos.y,
+                                        ]}
+                                        stroke="#f97316"
+                                        strokeWidth={1.5}
+                                        dash={[3, 3]}
+                                        opacity={0.5}
+                                    />
+                                )}
+                                {activePoints.map((p, idx) => (
+                                    <Circle
+                                        key={idx}
+                                        x={p.x}
+                                        y={p.y}
+                                        radius={4}
+                                        fill={idx === 0 ? "#f97316" : "#ffffff"}
+                                        stroke="#f97316"
+                                        strokeWidth={1.5}
+                                    />
+                                ))}
+                            </Layer>
+                        </Stage>
+                    )}
+
+                    {/* ── Floating action menu — dark theme, stands out against the light polygon fill ── */}
+                    {selectedAnnotation && (
+                        <div
+                            className="absolute z-40 -translate-x-1/2 -translate-y-full"
+                            style={{
+                                left: getFloatingMenuPosition(selectedAnnotation).left,
+                                top: getFloatingMenuPosition(selectedAnnotation).top,
+                            }}
+                        >
+                            <div className="flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 shadow-soft-lg ring-1 ring-white/10">
+                                <span className="max-w-[120px] truncate text-xs font-medium text-white">
+                                    {selectedAnnotation.label || "(no label)"}
+                                </span>
+                                <div className="h-4 w-px bg-white/15" />
+                                <button
+                                    onClick={openEditLabelModal}
+                                    className="rounded p-1 text-slate-300 transition-colors hover:bg-white/10 hover:text-primary-300"
+                                    aria-label="Edit label"
+                                >
+                                    <Pencil size={13} />
+                                </button>
+                                <button
+                                    onClick={confirmDeleteSelected}
+                                    disabled={deleting}
+                                    className="rounded p-1 text-slate-300 transition-colors hover:bg-white/10 hover:text-danger-400 disabled:opacity-50"
+                                    aria-label="Delete polygon"
+                                >
+                                    <Trash2 size={13} />
+                                </button>
+                            </div>
+                            <div className="mx-auto h-2 w-2 -mt-1 rotate-45 bg-slate-900" />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Label Input Modal — crisp white theme, stands out against dark canvas ── */}
             {isLabelModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-                        <h3 className="mb-1 text-lg font-semibold text-gray-800">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-100 bg-white p-6 shadow-soft-xl">
+                        <h3 className="mb-1 text-base font-semibold text-slate-900">
                             {editingAnnotation ? "Edit Label" : "Label this Polygon"}
                         </h3>
-                        <p className="mb-4 text-xs text-gray-500">
+                        <p className="mb-4 text-xs text-slate-400">
                             {editingAnnotation
                                 ? "Update the label for this saved polygon."
                                 : "Give this shape a name before saving (e.g. tumor, lesion, region-A)."}
@@ -347,21 +361,21 @@ export default function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                                 value={labelInput}
                                 onChange={(e) => setLabelInput(e.target.value)}
                                 placeholder="e.g. tumor-region-A"
-                                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
 
-                            <div className="mt-5 flex justify-end gap-3">
+                            <div className="mt-5 flex justify-end gap-2.5">
                                 <button
                                     type="button"
                                     onClick={closeLabelModal}
-                                    className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                                    className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={savingLabel}
-                                    className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                    className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-soft-sm transition-all hover:bg-primary-700 active:scale-95 disabled:opacity-50"
                                 >
                                     {savingLabel ? "Saving..." : editingAnnotation ? "Update Label" : "Save Polygon"}
                                 </button>

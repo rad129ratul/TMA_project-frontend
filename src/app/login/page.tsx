@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LayoutGrid, AlertCircle } from "lucide-react";
 import { setTokens } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const inputClass =
+    "w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 transition-colors placeholder:text-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500";
+const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -27,9 +32,9 @@ export default function LoginPage() {
 
             if (!res.ok) {
                 if (res.status === 401) {
-                    setError("ভুল ইমেইল বা পাসওয়ার্ড।");
+                    setError("Wrong email or password.");
                 } else {
-                    setError("লগিন ব্যর্থ হয়েছে, আবার চেষ্টা করো।");
+                    setError("Login failed, try again.");
                 }
                 return;
             }
@@ -37,55 +42,75 @@ export default function LoginPage() {
             const data = await res.json();
             setTokens(data.access, data.refresh);
             router.push("/tasks");
-        } catch (err) {
-            setError("সার্ভারের সাথে সংযোগ করা যায়নি।");
+        } catch {
+            setError("Could not connect to the server.");
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-            <form
-                onSubmit={handleSubmit}
-                className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow-md"
-            >
-                <h1 className="text-2xl font-semibold text-gray-800">লগইন করুন</h1>
-
-                {error && (
-                    <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>
-                )}
-
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">Email</label>
-                    <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+            <div className="w-full max-w-sm">
+                {/* Logo — matches Navbar branding for consistency */}
+                <div className="mb-6 flex flex-col items-center gap-2.5">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-600 text-white shadow-soft-md">
+                        <LayoutGrid size={20} strokeWidth={2.5} />
+                    </span>
+                    <span className="text-sm font-semibold tracking-tight text-slate-900">
+                        TMA_project
+                    </span>
                 </div>
 
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">Password</label>
-                    <input
-                        type="password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                <form
+                    onSubmit={handleSubmit}
+                    className="w-full space-y-4 rounded-2xl border border-slate-100 bg-white p-8 shadow-soft-lg"
                 >
-                    {loading ? "লগইন হচ্ছে..." : "লগইন"}
-                </button>
-            </form>
+                    <div>
+                        <h1 className="text-lg font-semibold text-slate-900">Welcome back</h1>
+                        <p className="mt-1 text-xs text-slate-400">Log in to manage your tasks and annotations.</p>
+                    </div>
+
+                    {error && (
+                        <div className="flex items-center gap-2 rounded-lg border border-danger-100 bg-danger-50 px-3.5 py-2.5 text-sm text-danger-700">
+                            <AlertCircle size={15} className="shrink-0" />
+                            {error}
+                        </div>
+                    )}
+
+                    <div>
+                        <label className={labelClass}>Email</label>
+                        <input
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            className={inputClass}
+                        />
+                    </div>
+
+                    <div>
+                        <label className={labelClass}>Password</label>
+                        <input
+                            type="password"
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className={inputClass}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full rounded-lg bg-primary-600 py-2.5 text-sm font-medium text-white shadow-soft-sm transition-all hover:bg-primary-700 hover:shadow-soft-md active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+                    >
+                        {loading ? "Logging in..." : "Login"}
+                    </button>
+                </form>
+            </div>
         </div>
     );
 }

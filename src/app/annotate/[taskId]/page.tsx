@@ -21,7 +21,6 @@ export default function AnnotateTaskPage() {
     const [loadingImages, setLoadingImages] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetching the task title to display in the header
     const fetchTask = useCallback(async () => {
         try {
             const res = await apiFetch(`/api/tasks/${taskId}/`);
@@ -33,7 +32,6 @@ export default function AnnotateTaskPage() {
         }
     }, [taskId]);
 
-    // Only images with this taskId will be fetched — with the query param ?task=<taskId>
     const fetchImages = useCallback(async () => {
         setLoadingImages(true);
         try {
@@ -43,7 +41,7 @@ export default function AnnotateTaskPage() {
             setImages(data);
             setSelectedImage((prev) => prev ?? (data.length > 0 ? data[0] : null));
         } catch {
-            // no-op — the slider will automatically show an empty state
+            // no-op — slider itself shows the empty state
         } finally {
             setLoadingImages(false);
         }
@@ -55,43 +53,60 @@ export default function AnnotateTaskPage() {
     }, [fetchTask, fetchImages]);
 
     return (
-        <div className="p-8">
+        <div className="mx-auto max-w-7xl p-6">
+            {/* ── Header ── */}
             <button
                 onClick={() => router.push("/tasks")}
-                className="mb-4 flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600"
+                className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-primary-600"
             >
-                <ArrowLeft size={16} /> Back to Tasks
+                <ArrowLeft size={15} /> Back to Tasks
             </button>
 
-            <h1 className="mb-1 text-2xl font-bold">
-                Annotate: {task?.title ?? "..."}
-            </h1>
-            <p className="mb-6 text-sm text-gray-400">
-                Images and annotations here are isolated to this task only.
-            </p>
+            <div className="mb-6 flex items-center justify-between">
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                        {task?.title ?? "Loading..."}
+                    </h1>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                        Images and annotations here are isolated to this task only.
+                    </p>
+                </div>
+            </div>
 
             {error && (
-                <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-            )}
-
-            <div className="mb-4">
-                <ImageUploadZone taskId={taskId} onUploaded={fetchImages} />
-            </div>
-
-            <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                <ImageSlider
-                    images={images}
-                    selectedImage={selectedImage}
-                    onSelect={setSelectedImage}
-                    loading={loadingImages}
-                />
-            </div>
-
-            {selectedImage && (
-                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <AnnotationCanvas image={selectedImage} />
+                <div className="mb-4 rounded-lg border border-danger-100 bg-danger-50 px-3.5 py-2.5 text-sm text-danger-700">
+                    {error}
                 </div>
             )}
+
+            {/* ── Editor Layout — Sidebar (left) + Canvas (right) ── */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
+                {/* Sidebar */}
+                <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft-xs lg:sticky lg:top-20 lg:self-start">
+                    <ImageUploadZone taskId={taskId} onUploaded={fetchImages} />
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                        <ImageSlider
+                            images={images}
+                            selectedImage={selectedImage}
+                            onSelect={setSelectedImage}
+                            loading={loadingImages}
+                        />
+                    </div>
+                </aside>
+
+                {/* Canvas workspace */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft-xs">
+                    {selectedImage ? (
+                        <AnnotationCanvas image={selectedImage} />
+                    ) : (
+                        <div className="flex min-h-[400px] flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 text-center">
+                            <p className="text-sm text-slate-400">
+                                Upload an image to start annotating.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

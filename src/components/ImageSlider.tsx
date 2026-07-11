@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { ImageOff, Loader2 } from "lucide-react";
 import { UploadedImage } from "@/types/annotation";
 
 interface ImageSliderProps {
@@ -16,28 +16,21 @@ export default function ImageSlider({
     onSelect,
     loading,
 }: ImageSliderProps) {
-    const currentIndex = selectedImage
-        ? images.findIndex((img) => img.id === selectedImage.id)
-        : -1;
-
-    function goPrev() {
-        if (currentIndex > 0) onSelect(images[currentIndex - 1]);
-    }
-
-    function goNext() {
-        if (currentIndex < images.length - 1) onSelect(images[currentIndex + 1]);
-    }
-
     if (loading) {
-        return <p className="text-sm text-gray-400">Loading images...</p>;
+        return (
+            <div className="flex flex-col items-center gap-2 py-10 text-slate-400">
+                <Loader2 size={18} className="animate-spin" />
+                <p className="text-xs">Loading images...</p>
+            </div>
+        );
     }
 
     if (images.length === 0) {
         return (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-gray-300 p-8 text-center">
-                <ImageOff className="text-gray-300" size={28} />
-                <p className="text-sm text-gray-500">
-                    No images uploaded yet. Upload one to start annotating.
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                <ImageOff className="text-slate-300" size={22} />
+                <p className="text-xs text-slate-400">
+                    No images uploaded yet.
                 </p>
             </div>
         );
@@ -45,48 +38,48 @@ export default function ImageSlider({
 
     return (
         <div>
-            {/* Prev/Next controller — shows a large counter, which image I am in */}
-            <div className="mb-3 flex items-center justify-between">
-                <button
-                    onClick={goPrev}
-                    disabled={currentIndex <= 0}
-                    className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
-                    aria-label="Previous image"
-                >
-                    <ChevronLeft size={20} />
-                </button>
-                <span className="text-xs font-medium text-gray-500">
-                    {currentIndex + 1} / {images.length}
+            <div className="mb-2.5 flex items-center justify-between px-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    Images
                 </span>
-                <button
-                    onClick={goNext}
-                    disabled={currentIndex >= images.length - 1}
-                    className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
-                    aria-label="Next image"
-                >
-                    <ChevronRight size={20} />
-                </button>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                    {images.length}
+                </span>
             </div>
 
-            {/* Thumbnail strip — Jump to any image by clicking directly */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-                {images.map((img) => (
-                    <button
-                        key={img.id}
-                        onClick={() => onSelect(img)}
-                        className={`shrink-0 overflow-hidden rounded-md border-2 transition-colors ${selectedImage?.id === img.id
-                            ? "border-blue-600"
-                            : "border-transparent hover:border-gray-300"
-                            }`}
-                    >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src={img.file}
-                            alt={`Upload ${img.id}`}
-                            className="h-16 w-16 object-cover"
-                        />
-                    </button>
-                ))}
+            {/* Vertical scrollable thumbnail panel — editor-sidebar style */}
+            <div className="flex max-h-[560px] flex-col gap-2 overflow-y-auto pr-1">
+                {images.map((img) => {
+                    const isActive = selectedImage?.id === img.id;
+                    return (
+                        <button
+                            key={img.id}
+                            onClick={() => onSelect(img)}
+                            className={`group relative overflow-hidden rounded-lg border-2 transition-all ${isActive
+                                    ? "border-primary-500 ring-2 ring-primary-200"
+                                    : "border-transparent hover:border-slate-200"
+                                }`}
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={img.file}
+                                alt={`Upload ${img.id}`}
+                                className="h-20 w-full object-cover"
+                            />
+                            {isActive && (
+                                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary-500 shadow-soft-xs" />
+                            )}
+                            <span
+                                className={`absolute inset-x-0 bottom-0 truncate px-2 py-1 text-[10px] font-medium text-white transition-opacity ${isActive
+                                        ? "bg-primary-600/90 opacity-100"
+                                        : "bg-slate-900/60 opacity-0 group-hover:opacity-100"
+                                    }`}
+                            >
+                                Image #{img.id}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );
